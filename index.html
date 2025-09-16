@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EMI Calculator — সহজ</title>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#ffffff; --accent:#0b63d6; --muted:#6b7280;
+      --radius:12px; font-family: "Segoe UI", Roboto, "Noto Sans Bengali", sans-serif;
+    }
+    body{margin:0;background:var(--bg);color:#111;}
+    .wrap{max-width:920px;margin:28px auto;padding:20px;}
+    header{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+    header h1{margin:0;font-size:20px}
+    .card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:0 6px 18px rgba(10,20,40,0.06);}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input,select{width:100%;padding:10px 12px;border:1px solid #e6e9ef;border-radius:10px;font-size:15px}
+    .actions{display:flex;gap:8px;align-items:center;margin-top:8px}
+    button{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer}
+    button.secondary{background:#eef3ff;color:var(--accent);border:1px solid #d7e6ff}
+    .results{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap}
+    .tile{flex:1;min-width:180px;background:#fbfdff;padding:12px;border-radius:10px;border:1px solid #eef3f8}
+    .tile h3{margin:0;font-size:12px;color:var(--muted)}
+    .tile p{margin:8px 0 0;font-size:18px;font-weight:600}
+    .full{grid-column:1/-1}
+    .small{font-size:13px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+    th,td{padding:8px;border-bottom:1px solid #f0f3f6;text-align:right}
+    th{background:#fbfdff;text-align:right;color:var(--muted);font-weight:600}
+    .right{text-align:right}
+    .note{margin-top:10px;color:var(--muted);font-size:13px}
+    @media (max-width:720px){
+      .grid{grid-template-columns:1fr}
+      .results{flex-direction:column}
+      th,td{text-align:right}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 1v22M1 12h22" stroke="#0b63d6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h1>EMI Calculator — সহজ ও দ্রুত</h1>
+    </header>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>Loan Amount</label>
+          <input id="amount" inputmode="numeric" value="15000" />
+        </div>
+
+        <div>
+          <label>Interest Rate (বার্ষিক %)</label>
+          <input id="rate" inputmode="numeric" value="20" />
+        </div>
+
+        <div>
+          <label>Tenure (মাস)</label>
+          <input id="months" inputmode="numeric" value="12" />
+        </div>
+
+        <div>
+          <label>Currency</label>
+          <select id="currency">
+            <option value="BDT">৳ (BDT)</option>
+            <option value="Tk">Tk</option>
+            <option value="USD">$ (USD)</option>
+            <option value="None">No symbol</option>
+          </select>
+        </div>
+
+        <div class="full">
+          <div class="actions">
+            <button id="calcBtn">Calculate EMI</button>
+            <button class="secondary" id="amortToggle">Show Amortization</button>
+            <button class="secondary" id="copyBtn">Copy EMI</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="results">
+        <div class="tile">
+          <h3>Monthly EMI</h3>
+          <p id="emi">-</p>
+          <div class="small">প্রতি মাসে পরিশোধ</div>
+        </div>
+
+        <div class="tile">
+          <h3>Total Interest</h3>
+          <p id="totalInterest">-</p>
+          <div class="small">মোট সুদ</div>
+        </div>
+
+        <div class="tile">
+          <h3>Total Payment</h3>
+          <p id="totalPayment">-</p>
+          <div class="small">মোট পরিশোধ (Principal + Interest)</div>
+        </div>
+      </div>
+
+      <div id="amortBlock" style="display:none;margin-top:14px">
+        <h3 style="margin:6px 0 10px">Amortization Schedule</h3>
+        <div style="overflow:auto;max-height:360px">
+          <table id="amortTable" aria-live="polite">
+            <thead><tr><th>মাস</th><th>EMI</th><th>Interest</th><th>Principal</th><th>Balance</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note">
+        টিপস: Rate এ **20** মানে 20%। যদি Rate সেলে `0.20` দেন, সেটাকে 100% হিসেবে মনে হবে — তাই সহজে ব্যবহার করতে মাত্রা (%) হিসেবে সংখ্যা দিন (উদাহরণ: 20).
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Helper: format number with currency symbol
+    function fmt(value, currency){
+      if (isNaN(value)) return '-';
+      const v = Number(value);
+      const rounded = Math.round((v + Number.EPSILON) * 100) / 100;
+      if(currency === 'BDT') return '৳' + rounded.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if(currency === 'Tk') return 'Tk ' + rounded.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if(currency === 'USD') return '$' + rounded.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      return rounded.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    // PMT function (same formula as Excel)
+    function computeEMI(P, annualRatePercent, nMonths){
+      const r = Number(annualRatePercent) / 100 / 12; // monthly rate in decimal
+      const n = Number(nMonths);
+      if (r === 0) return P / n;
+      const pow = Math.pow(1 + r, n);
+      const emi = (P * r * pow) / (pow - 1);
+      return emi;
+    }
+
+    // Amortization schedule generator
+    function amortization(P, annualRatePercent, nMonths, emi){
+      const schedule = [];
+      let balance = P;
+      const r = Number(annualRatePercent) / 100 / 12;
+      for (let i=1;i<=nMonths;i++){
+        const interest = balance * r;
+        const principal = Math.min(emi - interest, balance); // final month adjust
+        const newBalance = Math.max(0, balance - principal);
+        schedule.push({
+          month: i,
+          emi: emi,
+          interest: interest,
+          principal: principal,
+          balance: newBalance
+        });
+        balance = newBalance;
+      }
+      return schedule;
+    }
+
+    // DOM
+    const amountEl = document.getElementById('amount');
+    const rateEl = document.getElementById('rate');
+    const monthsEl = document.getElementById('months');
+    const currencyEl = document.getElementById('currency');
+
+    const emiEl = document.getElementById('emi');
+    const totalInterestEl = document.getElementById('totalInterest');
+    const totalPaymentEl = document.getElementById('totalPayment');
+    const amortBlock = document.getElementById('amortBlock');
+    const amortTableBody = document.querySelector('#amortTable tbody');
+
+    const calcBtn = document.getElementById('calcBtn');
+    const amortToggle = document.getElementById('amortToggle');
+    const copyBtn = document.getElementById('copyBtn');
+
+    function parseNumberInput(el){
+      // allow commas, spaces
+      const v = (el.value + '').replace(/,/g,'').trim();
+      return v === '' ? NaN : Number(v);
+    }
+
+    function calculateAndRender(){
+      const P = parseNumberInput(amountEl);
+      const rate = parseNumberInput(rateEl);
+      const n = parseNumberInput(monthsEl);
+      const currency = currencyEl.value;
+
+      if (!P || isNaN(rate) || !n || n<=0){
+        emiEl.textContent = '-';
+        totalInterestEl.textContent = '-';
+        totalPaymentEl.textContent = '-';
+        amortTableBody.innerHTML = '';
+        return;
+      }
+
+      const emi = computeEMI(P, rate, n);
+      const totalPayment = emi * n;
+      const totalInterest = totalPayment - P;
+
+      emiEl.textContent = fmt(emi, currency);
+      totalInterestEl.textContent = fmt(totalInterest, currency);
+      totalPaymentEl.textContent = fmt(totalPayment, currency);
+
+      // if amortization visible, update table
+      if (amortBlock.style.display !== 'none'){
+        const schedule = amortization(P, rate, n, emi);
+        amortTableBody.innerHTML = schedule.map(row => {
+          return `<tr>
+            <td style="text-align:center">${row.month}</td>
+            <td>${fmt(row.emi, currency)}</td>
+            <td>${fmt(row.interest, currency)}</td>
+            <td>${fmt(row.principal, currency)}</td>
+            <td>${fmt(row.balance, currency)}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    calcBtn.addEventListener('click', () => {
+      calculateAndRender();
+    });
+
+    amortToggle.addEventListener('click', () => {
+      amortBlock.style.display = amortBlock.style.display === 'none' ? 'block' : 'none';
+      amortToggle.textContent = amortBlock.style.display === 'none' ? 'Show Amortization' : 'Hide Amortization';
+      calculateAndRender();
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      const text = `EMI: ${emiEl.textContent}\nTotal Interest: ${totalInterestEl.textContent}\nTotal Payment: ${totalPaymentEl.textContent}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(()=> copyBtn.textContent = 'Copy EMI', 1500);
+      } catch(e){
+        alert('Unable to copy. Your browser may block clipboard API.');
+      }
+    });
+
+    // realtime calculate on input change (optional)
+    [amountEl, rateEl, monthsEl, currencyEl].forEach(el => {
+      el.addEventListener('input', () => {
+        // don't spam: only update UI when fields look filled
+        calculateAndRender();
+      });
+    });
+
+    // initial render
+    calculateAndRender();
+  </script>
+</body>
+</html>
